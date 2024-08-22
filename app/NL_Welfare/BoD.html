@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    <meta charset="utf-8">
+    <title>BoD Prototype Modeller (Broad Welfare in NL)</title>
+    <style>
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
+</style>
+  <script src="./solver.js"></script>
+<script>
+dataurl = 'https://yeconomist.nl/app/NL_Welfare/Resources/data.json';
+
+fetch(dataurl).then(response => {
+    return response.json()
+}).then(jsonFile => {
+    localStorage.setItem('dataraw', JSON.stringify(jsonFile))
+})
+
+</script>
+  </head>
+  <body>
+    <header>Broad Welfare Emulator (BoD Method)</header>
+    <main>
+    <div>
+    <p>Please Input the minimum and maximum boundary share constraints of each item.</p>
+<table>
+  <tr>
+    <th>Item</td>
+    <th>Lower</td>
+    <th>Upper</td>
+  </tr>
+  <tr>
+  <td>Income</td>
+    <td><input id="income_lower" name="income_lower" size ="4" value="10" type="numeric"></td>
+    <td><input id="income_upper" name="income_upper" size ="4" value="50" type="numeric"></td>
+  </tr>
+  <tr>
+  <td>Housing</td>
+    <td><input id="housing_lower" name="housing_lower" size ="4" value="10" type="numeric"></td>
+    <td><input id="housing_upper" name="housing_upper" size ="4" value="50" type="numeric"></td>
+  </tr>
+  <tr>
+  <td>Health</td>
+    <td><input id="health_lower" name="health_lower" size ="4" value="10" type="numeric"></td>
+    <td><input id="health_upper" name="health_upper" size ="4" value="50" type="numeric"></td>
+  </tr>
+  <tr>
+  <td>Air</td>
+    <td><input id="air_lower" name="air_lower" size ="4" value="10" type="numeric"></td>
+    <td><input id="air_upper" name="air_upper" size ="4" value="50" type="numeric"></td>
+  </tr>
+</table>
+    
+    <br/>
+    <button type="button" onclick = "tryAll()">Try All!</button>
+    <p>&nbsp;</p>
+    
+    <table id = "res_tb">
+    </table>
+    
+    </div>
+    </main>
+    <footer></footer>
+  <script>
+  
+  
+
+// Construct the problem
+const dataraw = JSON.parse(localStorage.getItem('dataraw'));
+
+
+var LPModel = {
+    "optimize": "BoD",
+    "opType": "max",
+    "constraints": {},
+    "variables": {},
+}
+
+// construct variables 
+for (let i = 1; i<5; i++) {LPModel.variables[dataraw.fields[i]] = {}};
+
+// install the BoD term (i.e. itself)
+
+// no negtive value in each of the variable
+for (let i = 1; i < 5; i++) {
+  LPModel.variables[dataraw.fields[i]]["noNeg_"+dataraw.fields[i]] = 1;
+  LPModel.constraints["noNeg_"+dataraw.fields[i]] = {"min": 0};
+}; 
+
+// summing up to no more than 100 for any of the individual
+for (let j = 0; j<dataraw.count; j++){
+    LPModel.constraints["Top100_Nr_"+j.toString()] = {"max":100};
+    for (let i= 1; i<5; i++){
+        LPModel.variables[dataraw.fields[i]]["Top100_Nr_"+j.toString()] = dataraw.data[j][dataraw.fields[i]];
+    }
+};
+
+// Default upper and lower bounds
+var bounds = {
+    lower:[0.1, 0.1, 0.1, 0.1],
+    upper:[0.5, 0.5, 0.5, 0.5]
+}
+
+
+// string for the table header
+let table_header = '<tr><th>COROP Name</td><th>Score</td><th colspan="4" style="text-align: center">Contribution Shares (%)</td></tr><th>&nbsp;</td><th>&nbsp;</td><th>income</td><th>housing</td><th>health</td><th>air</td></tr>';
+
+
+// Location Specific parts in the LP problem
+function CalcOne(target_id) {
+
+var LPModel_Own = LPModel;
+// target_id = 2; //Groningen
+
+// target (BoD)
+for (let i = 1; i < 5; i++) {
+    LPModel_Own.variables[dataraw.fields[i]]["BoD"] = dataraw.data[target_id][dataraw.fields[i]];
+}
+
+// Pie share not larger than upper bound
+for  (let i = 1; i < 5; i++) {
+ LPModel_Own.constraints["UpPie_"+dataraw.fields[i]] = {"max":0};
+ for  (let ii=1; ii< 5;ii++){
+   baseval = - bounds.upper[i-1] * dataraw.data[target_id][dataraw.fields[ii]];
+   if(i==ii){baseval = baseval + dataraw.data[target_id][dataraw.fields[ii]];};
+   LPModel_Own.variables[dataraw.fields[ii]]["UpPie_"+dataraw.fields[i]] = baseval;
+ }
+}
+
+// Pie share not smaller than lower bound
+for  (let i = 1; i < 5; i++) {
+ LPModel_Own.constraints["LoPie_"+dataraw.fields[i]] = {"max":0};
+ for (let ii= 1; ii< 5;ii++){
+   baseval = bounds.lower[i-1] * dataraw.data[target_id][dataraw.fields[ii]];
+   if(i==ii){baseval = baseval - dataraw.data[target_id][dataraw.fields[ii]];};
+   LPModel_Own.variables[dataraw.fields[ii]]["LoPie_"+dataraw.fields[i]] = baseval;
+ }
+}
+
+
+aaa=solver.Solve(LPModel_Own);
+
+
+return aaa;
+}
+
+function tryAll(){
+  // update bounds
+  // Currently validity checkers are not implemented
+  var bType = ["upper", "lower"];
+  for (let j = 0; j<2; j++){
+    for (let i = 1; i<5; i++) {
+      id_str = dataraw.fields[i]+"_"+bType[j];
+      bounds[bType[j]][i-1] = document.getElementById(id_str).value / 100.0;
+    }
+  }
+  
+
+  var restable = document.getElementById("res_tb");
+  restable.innerHTML = table_header;
+  
+  
+  
+  for (let i = 0; i<dataraw.count; i++){
+     var identity = dataraw.identities[i];
+     var Output = CalcOne(i);
+     
+     var tablerow = restable.insertRow(-1);
+     var cell = tablerow.insertCell(0);
+     cell.innerText = identity;
+     
+     var cell = tablerow.insertCell(1);
+     cell.innerText = (Math.round(Output.result * 100) / 100).toFixed(2);
+    
+     for (let iii = 1; iii<5; iii++) {
+         var cell = tablerow.insertCell(iii+1);
+         var val_disp = Output[dataraw.fields[iii]]*dataraw.data[i][dataraw.fields[iii]]/Output.result;
+         cell.innerText = (Math.round(val_disp* 10000) / 100).toFixed(2);
+     }
+     
+  }
+}
+</script>
+</body>
+
+<!-- 
+Acknowledgement: This programme used JS LP Solver from https://www.npmjs.com/package/javascript-lp-solver
+-->
+</html>
+
