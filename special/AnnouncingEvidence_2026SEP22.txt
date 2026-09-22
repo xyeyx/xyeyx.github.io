@@ -1,0 +1,20 @@
+I have made a video as digital evidence. 
+The encrypted 7z file is uploaded to a certain location to keep it safe.
+
+The following documents the property of the file.
+
+Time video is taken: 2026 September 22
+Time this "notice" being placed on the internet: 2026 September 22 (Also See GitHub Time Stamp).
+
+
+Video File Size: 327619236
+Length: 5:29
+sha256sum: 83830302ffeb2e89473c3beb3ba7a01177aaf98a90d002910d98d5ed5b1cd87e
+
+
+
+Encrypted 7-zip file with the following password:
+Meow_Meow!Cat
+
+File size: 326995068
+sha256sum: 3c4538e517e665a53cc141a86d8d38575f16bb983f9a98f80a19b6ad013ea522
